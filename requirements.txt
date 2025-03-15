@@ -1,2 +1,2 @@
 pygame>=2.0.0
-cx_Freeze>=6.11.0  # 用于构建exe 
+pyinstaller>=5.0.0 
