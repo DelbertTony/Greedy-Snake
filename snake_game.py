@@ -15,6 +15,27 @@ BLACK = (0, 0, 0)
 GRAY = (128, 128, 128)
 BLUE = (0, 0, 255)
 
+# 添加主题颜色
+LIGHT_THEME = {
+    'background': (240, 240, 240),
+    'grid': (200, 200, 200),
+    'text': (60, 60, 60),
+    'snake_head': (0, 180, 0),
+    'snake_body': (0, 160, 0),
+    'food': (200, 50, 50),
+    'obstacle': (150, 150, 150)
+}
+
+DARK_THEME = {
+    'background': (0, 0, 0),
+    'grid': (40, 40, 40),
+    'text': (255, 255, 255),
+    'snake_head': (0, 200, 0),
+    'snake_body': (0, 180, 0),
+    'food': (200, 50, 50),
+    'obstacle': (100, 100, 100)
+}
+
 # 游戏设置
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
@@ -142,6 +163,7 @@ class Game:
         self.state = "MENU"  # MENU, SETTINGS, PLAYING, PAUSED, GAME_OVER, INPUT_NAME
         self.current_speed = DEFAULT_SPEED
         self.player_name = ""
+        self.theme = DARK_THEME  # 添加主题设置
         # 简化字体设置
         try:
             if sys.platform.startswith('win'):
@@ -179,9 +201,29 @@ class Game:
             return []
 
     def save_leaderboard(self, name, score):
-        self.leaderboard.append({"name": name, "score": score})
-        self.leaderboard.sort(key=lambda x: x["score"], reverse=True)
-        self.leaderboard = self.leaderboard[:MAX_LEADERBOARD_ENTRIES]
+        # 添加速度信息到记录中
+        new_entry = {
+            "name": name, 
+            "score": score,
+            "speed": self.current_speed  # 添加速度信息
+        }
+        self.leaderboard.append(new_entry)
+        
+        # 按速度分组，每个速度保留前10名
+        speed_groups = {}
+        for entry in self.leaderboard:
+            speed = entry["speed"]
+            if speed not in speed_groups:
+                speed_groups[speed] = []
+            speed_groups[speed].append(entry)
+        
+        # 对每个速度组内的记录按分数排序
+        new_leaderboard = []
+        for speed in speed_groups:
+            speed_groups[speed].sort(key=lambda x: x["score"], reverse=True)
+            new_leaderboard.extend(speed_groups[speed][:MAX_LEADERBOARD_ENTRIES])
+        
+        self.leaderboard = new_leaderboard
         path = get_resource_path('leaderboard.json')
         with open(path, 'w') as f:
             json.dump(self.leaderboard, f)
@@ -203,46 +245,75 @@ class Game:
         screen.blit(quit_text, (WINDOW_WIDTH//2 - quit_text.get_width()//2, 410))
 
     def draw_settings(self):
-        screen.fill(BLACK)
+        screen.fill(self.theme['background'])
         self.draw_grid()
         
-        title = self.font.render('设置', True, GREEN)
-        speed_text = self.font.render(f'速度: {self.current_speed}', True, WHITE)
-        controls = self.small_font.render('使用左右方向键调整速度，按ESC返回', True, WHITE)
+        title = self.font.render('设置', True, self.theme['text'])
+        speed_text = self.font.render(f'速度: {self.current_speed}', True, self.theme['text'])
+        theme_text = self.font.render(f'主题: {"暗色" if self.theme == DARK_THEME else "亮色"}', True, self.theme['text'])
+        controls = self.small_font.render('左右键调速度，T键切换主题，ESC返回', True, self.theme['text'])
         
-        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 200))
-        screen.blit(speed_text, (WINDOW_WIDTH//2 - speed_text.get_width()//2, 300))
-        screen.blit(controls, (WINDOW_WIDTH//2 - controls.get_width()//2, 400))
+        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 150))
+        screen.blit(speed_text, (WINDOW_WIDTH//2 - speed_text.get_width()//2, 250))
+        screen.blit(theme_text, (WINDOW_WIDTH//2 - theme_text.get_width()//2, 350))
+        screen.blit(controls, (WINDOW_WIDTH//2 - controls.get_width()//2, 450))
 
     def draw_leaderboard(self):
-        screen.fill(BLACK)
+        screen.fill(self.theme['background'])
         self.draw_grid()
         
-        title = self.font.render('排行榜', True, GREEN)
+        title = self.font.render('排行榜', True, self.theme['text'])
         screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 50))
         
-        y_pos = 150
-        for i, entry in enumerate(self.leaderboard):
-            text = self.small_font.render(f"{i+1}. {entry['name']}: {entry['score']}", True, WHITE)
-            screen.blit(text, (WINDOW_WIDTH//2 - text.get_width()//2, y_pos))
-            y_pos += 40
+        # 按速度分组显示排行榜
+        speed_groups = {}
+        for entry in self.leaderboard:
+            speed = entry["speed"]
+            if speed not in speed_groups:
+                speed_groups[speed] = []
+            speed_groups[speed].append(entry)
+        
+        y_pos = 120
+        for speed in sorted(speed_groups.keys()):
+            # 显示速度标题
+            speed_text = self.small_font.render(f"速度 {speed}:", True, self.theme['text'])
+            screen.blit(speed_text, (50, y_pos))
+            y_pos += 30
             
-        back = self.small_font.render('按ESC返回', True, WHITE)
-        screen.blit(back, (WINDOW_WIDTH//2 - back.get_width()//2, 550))
+            # 显示该速度下的前10名
+            for i, entry in enumerate(sorted(speed_groups[speed], key=lambda x: x["score"], reverse=True)[:10]):
+                text = self.small_font.render(
+                    f"{i+1}. {entry['name']}: {entry['score']}", 
+                    True, 
+                    self.theme['text']
+                )
+                screen.blit(text, (80, y_pos))
+                y_pos += 25
+            
+            y_pos += 15  # 不同速度组之间添加间距
+            
+            # 如果超出屏幕范围，停止显示
+            if y_pos > WINDOW_HEIGHT - 60:
+                break
+        
+        back = self.small_font.render('按ESC返回', True, self.theme['text'])
+        screen.blit(back, (WINDOW_WIDTH//2 - back.get_width()//2, WINDOW_HEIGHT - 40))
 
     def draw_name_input(self, score):
-        screen.fill(BLACK)
+        screen.fill(self.theme['background'])
         self.draw_grid()
         
-        title = self.font.render('新高分！', True, GREEN)
-        score_text = self.font.render(f'得分: {score}', True, WHITE)
-        name_text = self.font.render(f'名字: {self.player_name}', True, WHITE)
-        hint = self.small_font.render('输入你的名字并按回车确认', True, WHITE)
+        title = self.font.render('新高分！', True, self.theme['text'])
+        score_text = self.font.render(f'得分: {score}', True, self.theme['text'])
+        speed_text = self.font.render(f'速度: {self.current_speed}', True, self.theme['text'])  # 添加速度显示
+        name_text = self.font.render(f'名字: {self.player_name}', True, self.theme['text'])
+        hint = self.small_font.render('输入你的名字并按回车确认', True, self.theme['text'])
         
-        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 200))
-        screen.blit(score_text, (WINDOW_WIDTH//2 - score_text.get_width()//2, 270))
-        screen.blit(name_text, (WINDOW_WIDTH//2 - name_text.get_width()//2, 340))
-        screen.blit(hint, (WINDOW_WIDTH//2 - hint.get_width()//2, 410))
+        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 150))
+        screen.blit(score_text, (WINDOW_WIDTH//2 - score_text.get_width()//2, 220))
+        screen.blit(speed_text, (WINDOW_WIDTH//2 - speed_text.get_width()//2, 290))  # 显示速度
+        screen.blit(name_text, (WINDOW_WIDTH//2 - name_text.get_width()//2, 360))
+        screen.blit(hint, (WINDOW_WIDTH//2 - hint.get_width()//2, 430))
 
     def draw_game_over(self, score):
         screen.fill(BLACK)
@@ -271,26 +342,21 @@ class Game:
         screen.blit(continue_text, (WINDOW_WIDTH//2 - continue_text.get_width()//2, 320))
 
     def draw_grid(self):
-        # 绘制网格
         for x in range(0, WINDOW_WIDTH, GRID_SIZE):
-            pygame.draw.line(screen, GRID_COLOR, (x, 0), (x, WINDOW_HEIGHT))
+            pygame.draw.line(screen, self.theme['grid'], (x, 0), (x, WINDOW_HEIGHT))
         for y in range(0, WINDOW_HEIGHT, GRID_SIZE):
-            pygame.draw.line(screen, GRID_COLOR, (0, y), (WINDOW_WIDTH, y))
+            pygame.draw.line(screen, self.theme['grid'], (0, y), (WINDOW_WIDTH, y))
 
     def draw_snake(self, snake):
-        # 绘制蛇身
         for i, pos in enumerate(snake.positions):
-            color = SNAKE_HEAD_COLOR if i == 0 else SNAKE_BODY_COLOR
+            color = self.theme['snake_head'] if i == 0 else self.theme['snake_body']
             x = pos[0] * GRID_SIZE
             y = pos[1] * GRID_SIZE
             
-            # 绘制圆角矩形
             rect = pygame.Rect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2)
             pygame.draw.rect(screen, color, rect, border_radius=5)
             
-            # 如果是蛇头，添加眼睛
             if i == 0:
-                # 根据方向确定眼睛位置
                 eye_offset = 4
                 if snake.direction == LEFT or snake.direction == RIGHT:
                     pygame.draw.circle(screen, WHITE, (x + GRID_SIZE//2, y + eye_offset), 2)
@@ -347,6 +413,8 @@ def main():
                         game.current_speed = max(MIN_SPEED, game.current_speed - 1)
                     elif event.key == pygame.K_RIGHT:
                         game.current_speed = min(MAX_SPEED, game.current_speed + 1)
+                    elif event.key == pygame.K_t:  # 添加主题切换
+                        game.theme = LIGHT_THEME if game.theme == DARK_THEME else DARK_THEME
 
         elif game.state == "LEADERBOARD":
             game.draw_leaderboard()
@@ -406,26 +474,28 @@ def main():
                 if snake.score % 5 == 0:
                     snake.speed = min(snake.speed + 2, 25)
 
-            screen.fill(BLACK)
-            game.draw_grid()  # 绘制网格
+            screen.fill(game.theme['background'])
+            game.draw_grid()
             
             # 绘制障碍物
             for pos in obstacles.positions:
                 rect = pygame.Rect(pos[0] * GRID_SIZE + 1, 
                                  pos[1] * GRID_SIZE + 1,
                                  GRID_SIZE - 2, GRID_SIZE - 2)
-                pygame.draw.rect(screen, OBSTACLE_COLOR, rect, border_radius=3)
+                pygame.draw.rect(screen, game.theme['obstacle'], rect, border_radius=3)
             
-            # 使用新的绘制方法
             game.draw_food(food)
             game.draw_snake(snake)
 
-            # 显示分数（添加背景框）
-            score_text = game.small_font.render(f'得分: {snake.score} 最高分: {game.high_score}', True, WHITE)
-            score_rect = score_text.get_rect(topleft=(10, 10))
-            pygame.draw.rect(screen, (0, 0, 0, 128), 
-                           score_rect.inflate(20, 10))
-            screen.blit(score_text, (10, 10))
+            # 修改分数显示位置和样式
+            score_text = game.small_font.render(f'得分: {snake.score} 最高分: {game.high_score}', True, game.theme['text'])
+            score_rect = score_text.get_rect(topright=(WINDOW_WIDTH - 10, 10))
+            # 添加半透明背景
+            bg_surface = pygame.Surface((score_rect.width + 20, score_rect.height + 10))
+            bg_surface.fill(game.theme['background'])
+            bg_surface.set_alpha(200)
+            screen.blit(bg_surface, (score_rect.x - 10, score_rect.y - 5))
+            screen.blit(score_text, score_rect)
 
         elif game.state == "PAUSED":
             for event in pygame.event.get():
